@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>dBank Frontend</title>
+    <!-- Include web3.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.5.3/dist/web3.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .input-group {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .output-area {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+            grid-column: span 2;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        button {
+            width: calc(100% - 20px);
+            margin-bottom: 10px;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        li {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>dBank Application</h1>
+    <div class="container">
+        <div class="input-group">
+            <h2>Create User</h2>
+            <input type="text" id="userAddress" placeholder="User Address">
+            <input type="number" id="initialBalance" placeholder="Initial Balance">
+            <button id="createUserBtn">Create User</button>
+        </div>
+        <div class="input-group">
+            <h2>Deposit</h2>
+            <input type="number" id="depositAmount" placeholder="Deposit Amount">
+            <button id="depositBtn">Deposit</button>
+        </div>
+        <div class="input-group">
+            <h2>Transfer</h2>
+            <input type="text" id="transferTo" placeholder="Recipient Address">
+            <input type="number" id="transferAmount" placeholder="Transfer Amount">
+            <button id="transferBtn">Transfer</button>
+        </div>
+        <div class="input-group">
+            <h2>Transaction History</h2>
+            <button id="transactionHistoryBtn">View History</button>
+            <ul id="transactionHistory"></ul>
+        </div>
+        <div class="input-group">
+            <h2>Connect Wallet</h2>
+            <button id="connectWalletBtn">Connect Wallet</button>
+        </div>
+        <div class="output-area">
+            <h2>Output:</h2>
+            <pre id="output"></pre>
+        </div>
+    </div>
+
+    <script>
+        // Initialize web3 and contract globally
+        let web3;
+        let contract;
+
+        // Initialize contract ABI and address
+        const contractABI = [
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "from",
+                    "type": "address"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "uint256",
+                    "name": "amount",
+                    "type": "uint256"
+                }
+            ],
+            "name": "BankDeposit",
+            "type": "event"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "userAddress",
+                    "type": "address"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "initialBalance",
+                    "type": "uint256"
+                }
+            ],
+            "name": "createUser",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "deposit",
+            "outputs": [],
+            "stateMutability": "payable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "from",
+                    "type": "address"
+                },
+                {
+                    "internalType": "address",
+                    "name": "to",
+                    "type": "address"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "amount",
+                    "type": "uint256"
+                }
+            ],
+            "name": "performTransaction",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "from",
+                    "type": "address"
+                },
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "to",
+                    "type": "address"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "uint256",
+                    "name": "amount",
+                    "type": "uint256"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "uint256",
+                    "name": "timestamp",
+                    "type": "uint256"
+                }
+            ],
+            "name": "Transaction",
+            "type": "event"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "userAddress",
+                    "type": "address"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "uint256",
+                    "name": "initialBalance",
+                    "type": "uint256"
+                }
+            ],
+            "name": "UserCreated",
+            "type": "event"
+        },
+        {
+            "inputs": [],
+            "name": "getBankBalance",
+            "outputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "getTransactionHistory",
+            "outputs": [
+                {
+                    "components": [
+                        {
+                            "internalType": "address",
+                            "name": "from",
+                            "type": "address"
+                        },
+                        {
+                            "internalType": "address",
+                            "name": "to",
+                            "type": "address"
+                        },
+                        {
+                            "internalType": "uint256",
+                            "name": "amount",
+                            "type": "uint256"
+                        },
+                        {
+                            "internalType": "uint256",
+                            "name": "timestamp",
+                            "type": "uint256"
+                        }
+                    ],
+                    "internalType": "struct DBANK.TransactionRecord[]",
+                    "name": "",
+                    "type": "tuple[]"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "userAddress",
+                    "type": "address"
+                }
+            ],
+            "name": "getUserBalance",
+            "outputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        }
+    ];
+        
+        const contractAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'; // Replace with your contract address
+
+        // Function to initialize web3 and contract
+        async function init() {
+            if (window.ethereum) {
+                web3 = new Web3(window.ethereum);
+                try {
+                    // Request account access if needed
+                    await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    console.log('Wallet connected successfully!');
+                    // Set the default account
+                    web3.eth.defaultAccount = window.ethereum.selectedAddress;
+                    // Initialize contract
+                    contract = new web3.eth.Contract(contractABI, contractAddress);
+                } catch (error) {
+                    console.error('Error connecting wallet:', error);
+                    // Update output area with error message
+                    document.getElementById('output').textContent = 'Error connecting wallet: ' + error.message;
+                }
+            } else {
+                console.error('MetaMask not detected.');
+                // Update output area with error message
+                document.getElementById('output').textContent = 'MetaMask not detected.';
+            }
+        }
+
+        // Function to handle creating a user
+        async function createUser() {
+            const userAddress = document.getElementById('userAddress').value;
+            const initialBalance = document.getElementById('initialBalance').value;
+
+            try {
+                // Perform contract interaction
+                const result = await contract.methods.createUser(userAddress, initialBalance).send({ from: web3.eth.defaultAccount });
+                console.log('User created successfully:', result);
+                // Update output area with success message
+                document.getElementById('output').textContent = 'User created successfully!';
+            } catch (error) {
+                console.error('Error creating user:', error);
+                // Update output area with error message
+                document.getElementById('output').textContent = 'Error creating user: ' + error.message;
+            }
+        }
+
+        // Function to handle depositing money
+        async function deposit() {
+            const depositAmount = document.getElementById('depositAmount').value;
+
+            try {
+                // Perform contract interaction
+                const result = await contract.methods.deposit().send({ from: web3.eth.defaultAccount, value: depositAmount });
+                console.log('Deposit successful:', result);
+                // Update output area with success message
+                document.getElementById('output').textContent = 'Deposit successful!';
+            } catch (error) {
+                console.error('Error depositing funds:', error);
+                // Update output area with error message
+                document.getElementById('output').textContent = 'Error depositing funds: ' + error.message;
+            }
+        }
+
+        // Function to handle transferring funds
+        async function transfer() {
+            const transferTo = document.getElementById('transferTo').value;
+            const transferAmount = document.getElementById('transferAmount').value;
+
+            try {
+                // Perform contract interaction
+                const result = await contract.methods.performTransaction(web3.eth.defaultAccount, transferTo, transferAmount).send({ from: web3.eth.defaultAccount });
+                console.log('Transfer successful:', result);
+                // Update output area with success message
+                document.getElementById('output').textContent = 'Transfer successful!';
+            } catch (error) {
+                console.error('Error transferring funds:', error);
+                // Update output area with error message
+                document.getElementById('output').textContent = 'Error transferring funds: ' + error.message;
+            }
+        }
+
+        // Function to handle viewing transaction history
+        async function viewTransactionHistory() {
+            try {
+                // Perform contract interaction
+                const result = await contract.methods.getTransactionHistory().call();
+                console.log('Transaction history:', result);
+                // Update transaction history list
+                const transactionList = document.getElementById('transactionHistory');
+                transactionList.innerHTML = '';
+                result.forEach(transaction => {
+                    const listItem = document.createElement('li');
+                    listItem.textContent = `From: ${transaction.from}, To: ${transaction.to}, Amount: ${transaction.amount}, Timestamp: ${transaction.timestamp}`;
+                    transactionList.appendChild(listItem);
+                });
+                // Update output area with success message
+                document.getElementById('output').textContent = 'Transaction history retrieved successfully!';
+            } catch (error) {
+                console.error('Error retrieving transaction history:', error);
+                // Update output area with error message
+                document.getElementById('output').textContent = 'Error retrieving transaction history: ' + error.message;
+            }
+        }
+
+        // Attach event listeners
+        document.getElementById('createUserBtn').addEventListener('click', createUser);
+        document.getElementById('depositBtn').addEventListener('click', deposit);
+        document.getElementById('transferBtn').addEventListener('click', transfer);
+        document.getElementById('transactionHistoryBtn').addEventListener('click', viewTransactionHistory);
+        document.getElementById('connectWalletBtn').addEventListener('click', init);
+
+        // Call init function on page load
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
