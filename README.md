@@ -24,7 +24,7 @@ To use the dBank application, follow these steps:
 1. **Clone the Repository**: Clone the repository to your local machine:
 
     ```bash
-    git clone https://github.com/yourusername/dbank.git
+    [git clone https://github.com/yourusername/dbank.git](https://github.com/DarshanAnand007/DUPI.git)
     ```
 
 2. **Navigate to the Project Directory**: Open a terminal and navigate to the project directory:
@@ -47,4 +47,4 @@ To use the dBank application, follow these steps:
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](MIT) file for details.
+This project is licensed under the MIT License.
